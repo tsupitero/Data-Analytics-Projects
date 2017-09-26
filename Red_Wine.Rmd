@@ -1,0 +1,604 @@
+---
+output:
+  html_document: default
+  pdf_document: default
+  word_document: default
+---
+Exploratory Data Analysis on Red Wine Data by Ramon Joseph P. Esteves
+========================================================
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, packages}
+# Load all of the packages that you end up using
+# in your analysis in this code chunk.
+
+# Notice that the parameter "echo" was set to FALSE for this code chunk.
+# This prevents the code from displaying in the knitted HTML output.
+# You should set echo=FALSE for all code chunks in your file.
+library(ggplot2)
+library(gridExtra)
+library(dplyr)
+```
+
+```{r echo=FALSE, Load_the_Data, warning=FALSE, fig.height = 10, fig.width = 10}
+# Load the Data
+redwine <- read.csv("wineQualityReds.csv")
+```
+
+# Univariate Plots Section
+
+
+```{r echo=FALSE, Univariate_Plots_a, warning=FALSE, fig.height = 10, fig.width = 10}
+
+#Summary excluding the variable X
+redwine <- select(redwine, -X)
+summary(redwine)
+
+```
+
+There are eleven input variables and an output variable.
+
+
+
+
+```{r echo=FALSE, Univariate_Plots_b, warning=FALSE}
+
+ggplot(aes(quality), data = redwine) + 
+  geom_bar() +
+  scale_x_continuous(breaks = seq(3,8,1)) +
+  ylab('Number of Wines') +
+  theme_minimal() +
+  ggtitle('Fig. 1')
+
+```
+
+The distribution of the score of the wines looks heavy on the center.
+
+
+
+
+```{r echo=FALSE, Univariate_Plots_c, warning=FALSE, fig.height = 10, fig.width = 10}
+redwine$taste_quality <- with(redwine,ifelse(quality <5, 'Bad',
+                                             ifelse(quality <6, 'Slightly Bad',
+                                                    ifelse(quality <7, 'Slightly Good', 'Good'))))
+
+redwine$taste_quality <- factor(redwine$taste_quality,levels = c("Bad", 'Slightly Bad', 'Slightly Good', 'Good'))
+
+summary(redwine$taste_quality)
+```
+
+The new values of the transformed taste quality.
+
+
+```{r echo=FALSE, Univariate_Plots_d, warning=FALSE, fig.height = 10, fig.width = 10}
+#Function that will graph the histograms of the the factors
+factor_histogram <- function(j, bins){
+  ggplot(aes(x = get(colnames(redwine[j]))), data = redwine) +
+    geom_histogram(binwidth = bins[j]) +
+    theme_minimal() +
+    ggtitle(paste("Fig 2.", j, sep = "")) + 
+    theme(plot.title = element_text(size=9)) +
+    xlab(colnames(redwine[j]))
+  }
+i= 1:11
+factor.bins <- c(0.2, 0.05, 0.03, 0.2, 0.005, 2, 4, 0.0005, 0.03, 0.05, 0.2)
+p <- lapply(i, factor_histogram, factor.bins)
+
+grid.arrange(top = "Histograms of the Factors", p[[1]], p[[2]], p[[3]], p[[4]], p[[5]], p[[6]], 
+             p[[7]], p[[8]], p[[9]], p[[10]], p[[11]], ncol = 3)
+```
+
+We can see many outliers which we should get rid of.
+
+
+
+
+```{r echo=FALSE, Univariate_Plots_e, warning=FALSE, fig.height = 10, fig.width = 10}
+#Function that will graph the histograms of the factors with adjusted x axes to remove outliers.
+adjusted_histogram <- function(j, bins, lower_b, upper_b){
+  ggplot(aes(x = get(colnames(redwine[j]))), data = redwine) +
+    geom_histogram(binwidth = bins[j]) +
+    scale_x_continuous(limits = c(lower_b[j], upper_b[j])) +
+    theme_minimal() +
+    ggtitle(paste('Fig 3.', j, sep = "")) + 
+    theme(plot.title = element_text(size=9)) +
+    xlab(colnames(redwine[j]))
+}
+
+#The lower and upper bounds that we will consider per factor.
+lower.bounds <- c(4.6, 0.12, 0,    0.9, 0.012, 1,  6,   0.9901, 2.74, 0.33, 8.4)
+upper.bounds <- c(14 , 1.1,  0.75, 5,   0.15,  42, 153, 1.0037, 3.75, 1.2,  13.8)
+
+
+p <- lapply(i, adjusted_histogram, factor.bins, lower.bounds, upper.bounds)
+grid.arrange(top = "Histograms of the Factors without the Outliers", p[[1]], p[[2]], p[[3]], p[[4]], p[[5]], p[[6]], 
+             p[[7]], p[[8]], p[[9]], p[[10]], p[[11]], ncol = 3)
+```
+
+We removed the outliers. Some of the distributions are bell-shaped.
+
+
+
+
+```{r echo=FALSE, Univariate_Plots_f, warning=FALSE}
+#This graph will decrease the binwidth of the histogram of alcohol to look for the exact location of the peak.
+p1 <- ggplot(aes(alcohol), data = redwine) + geom_histogram(binwidth = .02) +
+  scale_x_continuous(breaks = c(8., 9.5, 14)) +
+  theme_minimal() +
+  ggtitle('Fig. 4.1')
+
+p2 <- ggplot(aes(free.sulfur.dioxide), data = redwine) + geom_histogram(binwidth = .3) +
+  scale_x_continuous(breaks = c(0, 6, 60)) +
+  theme_minimal() +
+  ggtitle('Fig. 4.2')
+  
+grid.arrange(p1, p2, ncol = 2)
+```
+
+We take a look at the distributions of alcohol and free sulfur dioxide with less binwidth. It is clear that the peak falls at 9.5% and 6 mg/dm^3 for alcohol and free sulfur dioxide, respectively.
+
+# Univariate Analysis
+
+### What is the structure of your dataset?
+Our data consists of eleven chemical factors and an output variable which is the score of a wine based on sensory data. The chemicals are the following (based on physicochemical tests):
+
+1. fixed acidity (tartaric acid - g / dm^3): most acids involved with wine or fixed or nonvolatile (do not evaporate readily)
+2. volatile acidity (acetic acid - g / dm^3): the amount of acetic acid in wine, which at too high of levels can lead to an unpleasant, vinegar taste
+3. citric acid (g / dm^3): found in small quantities, citric acid can add 'freshness' and flavor to wines
+4. residual sugar (g / dm^3): the amount of sugar remaining after fermentation stops, it's rare to find wines with less than 1 gram/liter and wines with greater than 45 grams/liter are considered sweet
+5. chlorides (sodium chloride - g / dm^3): the amount of salt in the wine
+6. free sulfur dioxide (mg / dm^3): the free form of SO2 exists in equilibrium between molecular SO2 (as a dissolved gas) and bisulfite ion; it prevents microbial growth and the oxidation of wine
+7. total sulfur dioxide (mg / dm^3): amount of free and bound forms of S02; in low concentrations, SO2 is mostly undetectable in wine, but at free SO2 concentrations over 50 ppm, SO2 becomes evident in the nose and taste of wine
+8. density (g / cm^3): the density of water is close to that of water depending on the percent alcohol and sugar content
+9. pH: describes how acidic or basic a wine is on a scale from 0 (very acidic) to 14 (very basic); most wines are between 3-4 on the pH scale
+10. sulphates (potassium sulphate - g / dm3): a wine additive which can contribute to sulfur dioxide gas (S02) levels, wich acts as an antimicrobial and antioxidant
+11. alcohol (% by volume): the percent alcohol content of the wine
+12. quality (score between 0 and 10): Output variable (based on sensory data): 
+
+
+The quality in the data (*Fig. 1*) only have values from 3 to 8. And from the distribution, we can see that there are only very few 3's and 8's, so let us group them with 4 and 7, respectively. There will now be four groups and we label them as bad, slightly bad, slightly good, and good.
+
+From the distribution of the chemical variables (*Fig. 2.1 - 2.11*), we can see some outliers, especially for volatile acidity, citric acid, residual sugar, chlorides, free sulfur dioxide, total sulfur dioxide and sulphates. We omit those outliers from all of the plots in this report. The resulting distributions are *Fig. 3.1 - 3.11*
+
+### What is/are the main feature(s) of interest in your dataset?
+
+At first glance, before we make any analysis and by just reading the descriptions, each of the eleven variables looks equally important to the taste of a red wine. What we would like to investigate is if it really is the case. It is also our interest to know in what way does a certain factor affect the taste quality of a red wine, if it is indeed significant. For instance, fixed acidity, volatile acidity, residual sugar, chlorides, density, pH and sulphates seem to resemble normal distribution based on their histograms (*Fig. 3.1, 3.2, 3.4, 3.5, 3.8, 3.9, and 3.10*, respectively) . What would be the taste quality on their tails? Or in their means? 
+
+It is equally interesting that there is a high peak at 9.5% alcohol content and at 6 mg/dm^3 of free sulfur dioxide (*Fig. 4.1* and *Fig. 4.2*, respectively). We will definitely look for the usual taste quality on those levels.
+
+### What other features in the dataset do you think will help support your investigation into your feature(s) of interest?
+
+It would also be interesting to look at how the input variables are related to each other. Pearson's correlation is one way, but scatter plots will still be a lot of help to look for non linear relationships. It can help us to do clustering that would be benificial if we are already on the modelling part.
+
+### Did you create any new variables from existing variables in the dataset?
+Aside from regrouping the quality of redwines, no other metrics are created in this data set.
+
+### Of the features you investigated, were there any unusual distributions? Did you perform any operations on the data to tidy, adjust, or change the form of the data? If so, why did you do this?
+
+There is no need for any transformations as each of the variables already looked dispersed (*Fig. 3.1 - 3.11*). The taste scores are heavy on the middle, 5 and 6 (*Fig. 1*). We already renamed them to slightly bad and slightly good, repectively. This means that most of the wines taste just "normal".  And the data is already clean enough so it is ready to use for an analysis.
+
+# Bivariate Plots Section
+Median of Factors per Taste Quality
+```{r echo=FALSE, Bivariate_Plots_a, warning=FALSE, fig.height = 10, fig.width = 15}
+# select(redwine, taste_quality, fixed.acidity, 
+#        volatile.acidity, citric.acid, residual.sugar) %>%
+#   group_by(taste_quality) %>%
+#   summarise_each(funs(median))
+# select(redwine, taste_quality, chlorides, free.sulfur.dioxide, 
+#        total.sulfur.dioxide, density) %>%
+#   group_by(taste_quality) %>%
+#   summarise_each(funs(median))
+# select(redwine, taste_quality, pH, sulphates, alcohol) %>%
+#   group_by(taste_quality) %>%
+#   summarise_each(funs(median))
+
+options(width = 100, dplyr.width = Inf)
+median.table <- redwine %>%
+  select(-quality) %>%
+  group_by(taste_quality) %>%
+  summarise_each(funs(median))
+median.table <- as.data.frame(median.table)
+median.table
+```
+The median of fixed acidity, citric acid, residual sugar, and sulphates are increasing over the taste quality. While
+The median of volatile acidity is decreasing. This suggests that those factors might have a significant effect on the 
+taste quality.
+```{r echo=FALSE, Bivariate_Plots_b, warning=FALSE, fig.height = 10, fig.width = 10}
+# This function will give the scatter plot of each chemical variables against the taste quality
+scatter_vs_taste <- function(j, lower_b, upper_b){ 
+  ggplot(data = redwine, aes(x = get(colnames(redwine[j])), y = taste_quality)) + 
+  geom_point(size = 3/4, pch = 21) + 
+  scale_x_continuous(limits = c(lower_b[j], upper_b[j])) +
+  ggtitle(paste('Fig 5.', j, sep = '')) + 
+  theme(plot.title = element_text(size=9)) +
+  xlab(colnames(redwine[j]))
+}
+
+p <- lapply(i, scatter_vs_taste, lower.bounds, upper.bounds)
+grid.arrange(top = "Scatter Plots of each Variable and the Taste Quality", p[[1]], p[[2]], p[[3]], p[[4]], p[[5]], 
+             p[[6]], p[[7]], p[[8]], p[[9]], p[[10]], p[[11]], ncol = 3)
+```
+
+We can see some patterns if we look closely. It will be discussed on the Bivariate Analysis section.
+
+
+
+
+```{r echo=FALSE, Bivariate_Plots_c, warning=FALSE, fig.height = 10, fig.width = 10}
+# This function will get the histogram of each factors with the taste quality.
+colored_histogram <- function(j, bins, lower_b, upper_b){
+  ggplot(data = redwine, aes(get(colnames(redwine[j])), fill = taste_quality)) +
+  geom_histogram(binwidth = bins[j]) +
+  theme_minimal() +
+  scale_x_continuous(limits = c(lower_b[j], upper_b[j])) + 
+  theme(legend.position = 'right', legend.key.size = unit(.1,'cm'), legend.text = element_text(size = 8),
+        legend.title = element_text(size = 12), plot.title = element_text(size=9)) +
+  scale_fill_brewer(type = 'div', guide = guide_legend(title = 'taste quality', reverse =TRUE)) +
+  ggtitle(paste('Fig 6.', j, sep = '')) +
+  xlab(colnames(redwine[j]))
+}
+
+p <- lapply(i, colored_histogram, factor.bins, lower.bounds, upper.bounds)
+grid.arrange(top = "Histograms of the Factors colored by Taste Quality",
+             p[[1]], p[[2]], p[[3]], p[[4]], p[[5]], p[[6]], 
+             p[[7]], p[[8]], p[[9]], p[[10]], p[[11]], ncol = 2)
+```
+
+Most of our findings are in this plot section. It is again discussed inthe Bivariate Analysis section.
+
+
+
+
+```{r echo=FALSE, Bivariate_Plots_d, warning=FALSE, fig.height = 10, fig.width = 10}
+#Correlation matrix of the factors
+corr <- select(redwine, -c(taste_quality, quality))
+colnames(corr) <- c("fixed","volatile","citric","residual","chlorides","free",
+                    "total","density","pH","sulphates","alcohol")
+corr.matrix <- cor(corr)
+round(corr.matrix,2)
+```
+
+We can see some high correlations within the factors.
+
+
+
+
+# Bivariate Analysis
+
+### Talk about some of the relationships you observed in this part of the investigation. How did the feature(s) of interest vary with other features in the dataset?
+
+The medians of the taste quality of Fixed acidity, citric acid, residual sugar, and sulphates are increasing. And of the four, sulphates had the most gradual increase. It suggests that those factors have a positive effect on the taste.
+
+Next, we try to find the relationship between the taste quality with each of the independent variables (*Fig. 5.1 - 5.11*). As we did earlier, we remove the outliers to take a better picture about what really is going on. At first glance on the scatterplot, we cant see clearly any pattern. But looking closely, we can observe the following:
+
+- There are not so much bad score on the high values of fixed acidity, citric acid, chlorides, free sulfur dioxide, total sulfur dioxide, density, sulphates and alcohol.
+- There are not so much bad score on low values of volatile acidity and pH.
+- There are not so much good score on the high values o f volatile acidity, chlorides and total sulfur dioxide.
+- There are not so much good score on the low values of sulphates and alcohol.
+
+To see it more clearly, we take a look on the individual distributions again, but this time let us incorporate the quality scores.
+We can now have more obervations per factor:
+
+1. Fixed Acidity (*Fig. 6.1*)- Nothing really worth mentioning exept that the ratio of good scores to both normal and bad scores are slightly high on the right tail of the distribution, which is starting at 12 g/dm^3.
+2. Volatile Acidity (*Fig. 6.2*)- Good scores to bad and normal scores ratio are high around .3 g/dm^3.
+3. Citric acid (*Fig. 6.3*)- the ratios of both good to normal and bad to normal scores seem pretty evenly distributed.
+4. Residual Sugar (*Fig. 6.4*)- Bad to Normal ratio is low from 2.25 g/dm^3 to 2.75 g/dm^3.
+5. Chlorides (*Fig. 6.5*)- the distribution of the ratios are like from Citric Acid, except on the left tail where the good to normal and bad score ratios are slightly high. But the data is too little on that part to have a conclusive evidence.
+6. Free Sulfur Dioxide (*Fig. 6.6*)- Bad to normal ratio is low from 27 mg/dm^3 to 40 mg/dm^3.
+7. Total Sulfur Dioxide (*Fig. 6.7*)- The ratios seem wild in this one. Most good and bad scores are on the left side of the distribution (both from 6 mg/dm^3 to 60 mg/dm^3), and the score is more likely to be slighly bad as this factor increases.
+8. Density (*Fig. 6.8*)- The potential is great from .990 g/cm^3 to .993 g/cm^3, as the ratio of good to normal is very high, while having no bad scores. But the sample is too little there. But on the whole distribution, the ratios of good to normal and bad to normal are pretty even.
+9. pH (*Fig. 6.9*)- The bad to normal ratio is very low from 2.74 to 3.25, which is almost half of the distibution. There is also a good potential at 3.74 if we add more samples.
+10. Sulphates (*Fig. 6.10*)- Bad to normal ratio is low from 0.65 g/dm^3 to 1.1 g/dm^3 , and good to normal ratio is high from .65 g/dm^3 to .8 g/dm^3.
+11. Alcohol (*Fig. 6.11*)- Good to normal ratio is high from 10 to 13.5, and bad to normal ratio is low from 11.5% to 13.5%, except at 13.
+
+It is also worth mentioning that the peak of the alcohol content, which is at 9.5%, is dominated by slightly bad. While we cannot say any pattern for the peak in free sulfur dioxide.
+
+
+
+### Did you observe any interesting relationships between the other features (not the main feature(s) of interest)?
+
+From the correlation matrix, the chemical pairs with absolute correlation greater than .5 are
+fixed acidity and citric acid, fixed acidity and density, fixed acidity and pH, volatile acidity and citric acid,
+free sulfur dioxide and total sulfur dioxide, and density and alcohol.
+
+### What was the strongest relationship you found?
+
+If I am to give a verdict by just looking at these bivariate plots, I would say that in order to have a good quality wine, we choose one with low pH and high Sulphates. Don't settle for a 9.5% alcohol content, which is what the most red wines have. Instead, choose higher from 11.5% to 13.5%. Keep the Volatile acidity very near the .3 g/dm^3 level. However, this is with the assumption that each factors are independent with each other, which is certainly not. So what we should do is to keep in mind the insights we got from the plots of the factors vs the taste quality, while checking their relationship with each other.
+
+pH has a strong negative correlation with fixed acidity. Fixed acidity has just little impact based on our analysis so far. So **if** by changing fixed acidity there is a causal effect to pH, then wine makers should definitely try to increase the former. Same is true for density and alcohol. Density alone has little effect except for its potential as we stated. But we can look for smaller levels on density if alcohol is unknown. And finally we can try and give a function of citric acid to volatile acidity to look for levels of .3 g/dm^3 of the latter.
+
+
+# Multivariate Plots Section
+
+```{r echo=FALSE, Multivariate_Plots, warning=FALSE, fig.height = 10, fig.width = 10}
+
+factors_vs_taste <- function(n, lower_b, upper_b){
+  ggplot(aes(x = redwine[n[1]], y = redwine[n[2]], color = taste_quality), data = redwine) +
+  scale_color_brewer(type = 'div', guide = guide_legend(title = 'Quality', reverse =TRUE,
+                     override.aes = list(alpha = 1, size = 2))) + geom_point() + theme_dark() +
+  scale_x_continuous(limits = c(lower_b[n[1]], upper_b[n[1]])) + 
+  scale_y_continuous(limits = c(lower_b[n[2]], upper_b[n[2]])) +
+  ggtitle(paste('Fig. 7.', which(m[,1] == n[1] & m[,2] == n[2], arr.ind = TRUE), sep = '')) + 
+  xlab(colnames(redwine[n[1]])) +
+  ylab(colnames(redwine[n[2]])) +
+  theme(plot.title = element_text(size=9))
+}
+
+#matrix m will generate the indices of the dataframe redwine to exhaust all possible combinations of the factors.
+my_seq <- function(j){if(j+1 <= 11){(j+1):11}}
+k <- unlist(sapply(i, my_seq))
+l <- rep(i, 11-i)
+m <- matrix(c(l,k), ncol = 2 )
+
+p <- apply(m, 1, factors_vs_taste, lower.bounds, upper.bounds)
+```
+
+```{r echo=FALSE, warning=FALSE, fig.height = 10, fig.width = 10}
+grid.arrange(p[[1]], p[[2]], p[[3]], p[[4]], p[[5]], p[[6]], ncol  = 2)
+```
+
+* Quality seems to decrease as volatile acidity increases over fixed acidity. (*Fig. 7.1*)
+* Quality seems to  increase as citric acid increases over fixed acidity. (*Fig. 7.2*)
+* Quality seems to  be random over residual sugar and fixed acidity. (*Fig. 7.3*)
+* Quality seems to  decrease as chlorides increases over fixed acidity. (*Fig. 7.4*)
+* Quality seems to  be random over free sulfur dioxide and fixed acidity. (*Fig. 7.5*)
+* Quality seems to decrease as total sulfur dioxide increases over fixed acidity. (*Fig. 7.6*)
+
+
+
+
+```{r echo=FALSE, warning=FALSE, fig.height = 10, fig.width = 10}
+grid.arrange(p[[7]], p[[8]], p[[9]], p[[10]], p[[11]], p[[12]], ncol  = 2)
+```
+
+* Quality seems to decrease as density increases over fixed acidity. (*Fig. 7.7*)
+* Quality seems to be random over pH and fixed acidity. (*Fig. 7.8*)
+* Quality seems to increase as sulphates increases over fixed acidity. (*Fig. 7.9*)
+* Quality seems to increase as as alcohol increases over fixed acidity. (*Fig. 7.10*)
+* Quality seems to decrease as volatile acidity decreases over citric acid. (*Fig. 7.11*)
+* Quality seems to decrease as volatile acidity increases over residual sugar. (*Fig. 5712*)
+
+
+
+
+```{r echo=FALSE, warning=FALSE, fig.height = 10, fig.width = 10}
+grid.arrange(p[[13]], p[[14]], p[[15]], p[[16]], p[[17]], p[[18]], ncol  = 2)
+```
+* Quality seems to decrease as volatile acidity and chlorides increase. (*Fig. 7.13*)
+* Quality seems to decrease as volatile acidity increases over free sulfur dioxide. (*Fig. 7.14*)
+* Quality seems to decrease as total sulfur dioxide and volatile acidity increase. (*Fig. 7.15*)
+* Quality seems to decrease as volatile acidity increases over density. (*Fig. 7.16*)
+* Quality seems to decrease as volatile acidity increases over pH. (*Fig. 7.17*)
+* Quality seems to decrease as volatile acidity increases and quality seems to increase as sulphates increases. (*Fig. 7.18*)
+
+
+
+
+```{r echo=FALSE, warning=FALSE, fig.height = 10, fig.width = 10}
+grid.arrange(p[[19]], p[[20]], p[[21]], p[[22]], p[[23]], p[[24]], ncol  = 2)
+```
+* Quality seems to increase as alcohol increases and quality seems to decrease as volatility increases. (*Fig. 7.19*)
+* Quality seems to increase as citric acid increases over residual sugar. (*Fig. 7.20*)
+* Quality seems to increase as citric acid increases over chlorides. (*Fig. 7.21*)
+* Quality seems to be random over free sulfur dioxide and citric acid. (*Fig. 7.22*)
+* Quality seems to be random over total sulfur dioxide and citric acid. (*Fig. 7.23*)
+* Quality seems to be random over density and citric acid. (*Fig. 7.24*)
+
+
+
+
+```{r echo=FALSE, warning=FALSE, fig.height = 10, fig.width = 10}
+grid.arrange(p[[25]], p[[26]], p[[27]], p[[28]], p[[29]], p[[30]], ncol  = 2)
+```
+
+* Quality seems to be random over pH and citric acid. (*Fig. 7.25*)
+* Quality seems to increase as sulphates increases over citric acid. (*Fig. 7.26*)
+* Quality seems to increase as alcohol increases over citric acid. (*Fig. 7.27*)
+* Quality seems to be random over chlorides and residual sugar. (*Fig. 7.28*)
+* Quality seems to be random over free sulfur dioxide and residual sugar. (*Fig. 7.29*)
+* Quality seems to be random over total sulfur dioxide and residual sugar. (*Fig. 7.30*)
+
+
+
+
+```{r echo=FALSE, warning=FALSE, fig.height = 10, fig.width = 10}
+grid.arrange(p[[31]], p[[32]], p[[33]], p[[34]], p[[35]], p[[36]], ncol  = 2)
+```
+
+* Quality seems to be random over density and residual sugar. (*Fig. 7.31*)
+* Quality seems to be random over pH and residual sugar. (*Fig. 7.32*)
+* Quality seems to increase as sulphates increases over residual sugar. (*Fig. 7.33*)
+* Quality seems to increase as alcohol increases over residual sugar. (*Fig. 7.34*)
+* Quality seems to decrease as chlorides decreases over free sulfur dioxide. (*Fig. 7.35*)
+* Quality seems to be random over total sulfur dioxide and chlorides. (*Fig. 7.36*)
+
+
+
+
+```{r echo=FALSE, warning=FALSE, fig.height = 10, fig.width = 10}
+grid.arrange(p[[37]], p[[38]], p[[39]], p[[40]], p[[41]], p[[42]], ncol  = 2)
+```
+
+* Quality seems to decrease as chlorides increases over density. (*Fig. 7.37*)
+* Quality seems to decrease as pH and chlorides increases. (*Fig. 7.38*)
+* Quality seems to decrease as sulphates and chlorides increases. (*Fig. 7.39*)
+* Quality seems to decrease as chlorides increases and increase as alcohol increases. (*Fig. 7.40*)
+* Quality seems to be random over total sulfur dioxide and free sulfur dioxide. (*Fig. 7.41*)
+* Quality seems to decrease as density increases over free sulfur dioxide. (*Fig. 7.42*)
+
+
+
+
+```{r echo=FALSE, warning=FALSE, fig.height = 10, fig.width = 10}
+grid.arrange(p[[43]], p[[44]], p[[45]], p[[46]], p[[47]], p[[48]], ncol  = 2)
+```
+
+* Quality seems to be random over pH and free sulfur dioxide. (*Fig. 7.43*)
+* Quality seems to increase as sulphates increases over free sulfur dioxide. (*Fig. 7.44*)
+* Quality seems to increase as alcohol increases over free sulfur dioxide. (*Fig. 7.45*)
+* Quality seems to be random over density and total sulfur dioxide. (*Fig. 7.46*)
+* Quality seems to be random over pH and total sulfur dioxide. (*Fig. 7.47*)
+* Quality seems to increase as  total sulfur dioxide increases over total sulfur dioxide. (*Fig. 7.48*)
+
+
+
+
+```{r echo=FALSE, warning=FALSE, fig.height = 10, fig.width = 10}
+grid.arrange(p[[49]], p[[50]], p[[51]], p[[52]], p[[53]], p[[54]], p[[55]], ncol  = 2)
+```
+
+* Quality seems to decrease as total sulfur dioxide increases and increase as alcohol increases. (*Fig. 7.49*)
+* Quality seems to decrease as pH increases over density. (*Fig. 7.50*)
+* Quality seems to increase as sulphates increases over density. (*Fig. 7.51*)
+* Quality seems to increase as alcohol increases over density. (*Fig. 7.52*)
+* Quality seems to increase as sulphates increases over pH. (*Fig. 7.53*)
+* Quality seems to increase as alcohol increases over pH. (*Fig. 7.54*)
+* Quality seems to increase as alcohol and sulphates increase. (*Fig. 7.55*)
+
+
+
+
+# Multivariate Analysis
+
+### Talk about some of the relationships you observed in this part of the investigation. Were there features that strengthened each other in terms of looking at your feature(s) of interest?
+For the 55 scatter plots, we will look at the tendency of the quality per factor pairs.
+
+
+
+Now this list is a lot. But, we do not need to analyze all of them. We will just focus on the effect of strong relationships  from high sulphates and alcohol levels, low pH level, and having a level very near to .3 for volatile acidity. Then why did I still bother on listing all of the relationships of the variables? It is because we might find other observations that I might missed out. So it will be easier to have an analysis when there will be a new observation.
+
+So the plots we will be needing for our current analysis are pH vs fixed acidity (*Fig. 7.8*), density vs alcohol (*Fig. 7.52*), and citric acid vs volatile acidity (*Fig. 7.11*).
+
+### Were there any interesting or surprising interactions between features?
+
+ From the three scatter plots that we considered, the linear relationship are all negative. As in our previous analysis, we did not see a pattern on how fixed acidity, density and citric acid impact the score quality. But based on their strong linear and negative relationships with pH, alcohol, and volatile acidity, respectively, we can say that wine drinkers should should choose a higher fixed acidity and citric acid, and a lower density. Chances are better for a good wine quality if they do.
+
+### OPTIONAL: Did you create any models with your dataset? Discuss the strengths and limitations of your model.
+
+I did not create any model for this dataset. 
+
+_______
+# Final Plots and Summary
+
+### Plot One
+```{r echo=FALSE, Plot_One, fig.height = 6, fig.width = 10}
+p1 = ggplot(aes(quality), data = redwine) + 
+  geom_bar() +
+  scale_x_continuous(breaks = seq(3,8,1)) +
+  ylab('Number of Wines') +
+  theme_minimal() +
+  ggtitle('Original Measure of Wine Quality') +
+  theme(plot.title = element_text(size=11))
+
+
+p2 = ggplot(aes(taste_quality), data = redwine) + 
+  geom_bar() +
+  ylab('Number of Wines') +
+  theme_minimal() +
+  ggtitle('Transformed Measure of Wine Quality') +
+  theme(plot.title = element_text(size=11))
+
+
+grid.arrange(top = 'Transformation of the Measurement for the Quality of a Wine', p1, p2, ncol = 2)
+```
+
+### Description One
+
+When we are already at the part of modelling, it would be difficult to predict for the scores of 3 and 8 since the sample is just very small. It will not lose the accuracy if we just combine them to 4 and 7, respectively. We can all agree that tastes with 3 and 4 are bad scores while tastes with 7 and 8 are good scores. It is also evident that most of the tastes of the wines are in the middle. This fact reduced our exploration significantly as we can just concentrate on looking for the bad and good scores.
+
+### Plot Two
+```{r echo=FALSE, message=FALSE, warning=FALSE, Plot_Two, fig.height = 8, fig.width = 10}
+p1 = ggplot(aes(volatile.acidity, fill = taste_quality), data = redwine) +
+  geom_histogram(binwidth = .05) +
+  theme_minimal() + 
+  scale_x_continuous(limits = c(0.12,1.1)) + 
+  theme(legend.position = 'right', legend.key.size = unit(.1,'cm'), legend.text = element_text(size = 8),
+        legend.title = element_text(size = 12), plot.title = element_text(size=9)) +
+  scale_fill_brewer(type = 'div', guide = guide_legend(title = 'taste quality', reverse =TRUE)) +
+  ggtitle('Good scores around .3 mg/dm^3')
+
+
+p2 = ggplot(aes(pH, fill = taste_quality), data = redwine) +
+  geom_histogram(binwidth = .03) +
+  theme_minimal() + 
+  scale_x_continuous(limits = c(2.74,3.75)) + 
+  theme(legend.position = 'right', legend.key.size = unit(.1,'cm'), legend.text = element_text(size = 8),
+        legend.title = element_text(size = 12), plot.title = element_text(size=9)) +
+  scale_fill_brewer(type = 'div', guide = guide_legend(title = 'taste quality', reverse =TRUE)) +
+  ggtitle('Bad Scores are Less from 2.74 to 3.25')
+
+
+p3 = ggplot(aes(sulphates, fill = taste_quality), data = redwine) +
+  geom_histogram(binwidth = .02) +
+  theme_minimal() + 
+  scale_x_continuous(limits = c(0.33,1.2)) + 
+  theme(legend.position = 'right', legend.key.size = unit(.1,'cm'), legend.text = element_text(size = 8),
+        legend.title = element_text(size = 12), plot.title = element_text(size=9)) +
+  scale_fill_brewer(type = 'div', guide = guide_legend(title = 'taste quality', reverse =TRUE)) +
+  ggtitle('Better from .65 g/dm^3 to .8 g/dm^3.')
+
+
+p4 = ggplot(aes(alcohol, fill = taste_quality), data = redwine) +
+  geom_histogram(binwidth = .2) +
+  theme_minimal() + 
+  scale_x_continuous(limits = c(8.4,13.8)) + 
+  theme(legend.position = 'right', legend.key.size = unit(.1,'cm'), legend.text = element_text(size = 8),
+        legend.title = element_text(size = 12), plot.title = element_text(size=9)) +
+  scale_fill_brewer(type = 'div', guide = guide_legend(title = 'taste quality', reverse =TRUE)) +
+  ggtitle('Better scores are higher than 9.5% ')
+
+
+
+grid.arrange(top = "Histograms of the Factors with greatest impact", p1, p2, p3, p4, ncol = 2)
+```
+
+### Description Two
+
+These four factors have the clearest pattern in our analysis. Higher sulphates and alcohol are better, while the reverse is true for pH and volatility. I would like to mention again that most wines have a 9.5% alcohol content, and most of them taste normal. And out of the four, it is the sulphates that have the best pattern. Not only that the good scores are on the range that we stated, bad scores are also less.
+One important note though, we did not find any evidence that the other seven factors are not important. So let us not dismiss them even if we did not find any clear pattern.
+
+
+### Plot Three
+```{r echo=FALSE, message=FALSE, warning=FALSE, Plot_Three, fig.height = 7, fig.width = 10}
+p1 = ggplot(aes(x = fixed.acidity, y = pH, color = taste_quality), data = redwine) + 
+  scale_color_brewer(type = 'div', guide = guide_legend(title = 'Quality', reverse =TRUE,
+                                                        override.aes = list(alpha = 1, size = 2))) + geom_point() + theme_dark() + 
+  scale_x_continuous(limits = c(4.6,14)) + 
+  scale_y_continuous(limits = c(2.74,3.75)) +
+  ggtitle('') + 
+  theme(plot.title = element_text(size=9)) +
+  geom_smooth(method = "lm")
+
+p2 = ggplot(aes(x = citric.acid, y = volatile.acidity, color = taste_quality), data = redwine) + 
+  scale_color_brewer(type = 'div', guide = guide_legend(title = 'Quality', reverse =TRUE,
+                                                        override.aes = list(alpha = 1, size = 2))) + geom_point() + theme_dark() + 
+  scale_y_continuous(limits = c(0.12,1.1)) + 
+  scale_x_continuous(limits = c(0,.75)) +
+  ggtitle('') + 
+  theme(plot.title = element_text(size=9)) +
+  geom_smooth(method = "lm")
+
+p3 = ggplot(aes(x = density, y = alcohol, color = taste_quality), data = redwine) + 
+  scale_color_brewer(type = 'div', guide = guide_legend(title = 'Quality', reverse =TRUE,
+                                                        override.aes = list(alpha = 1, size = 2))) + geom_point() + theme_dark() + 
+  scale_x_continuous(limits = c(0.9901,1.0037)) + 
+  scale_y_continuous(limits = c(8.4,13.8)) +
+  ggtitle('') + 
+  theme(plot.title = element_text(size=9)) +
+  geom_smooth(method = 'lm')
+grid.arrange(p1, p2, p3, ncol = 2)
+```
+
+### Description Three
+
+We include the scatter plots of our leading factors and the factors that has a high correlation with them. We have three, as there are no strong linear relationships for sulphates. We included the linear regression lines for each scores to better see the linear relationship of the factors. All of our plots are decreasing. The idea is that we can find ways to look for a better tasting wine even if we do not know the value of the leading factors. For instance, we do not know the pH level of a certain wine but we do know its fixed acidity. So we look at its fixed acidity if it is at levels 12 g/dm^3 to 14 g/dm^3 to avoid having a bad tasting wine.
+
+_____________
+# Reflection
+
+There are three important points in our analysis:
+
+1. The leading candidates for the wine quality are sulphates, pH, volatile acidity, and alcohol. If we need to determine if a wine is good or not, we should **look for them first** before the other factors. Chances are it will save us time and have a better estimate. If they are unavailable, we can look for the factors that are highly related to them, which are fixed acidity for pH, citric acid for volatile acidity, and density for alcohol.
+
+2. When we are already in the modelling part, **we cannot dismiss the other seven factors** just because we are unable to see a clear pattern for them. It is because we fail to have any evidence that they are not important. So, the model for the taste quality should include all of the eleven factors. Not doing so might give us an incomplete result.
+
+3. **There is a lot of potential** for lower values of Chlorides (.05 g/dm^3 and below) and Density (.990 g/cm^3 to .993 g/cm^3). From the small sample size, the results are great. If it is possible, wine makers can experiment on these values.
